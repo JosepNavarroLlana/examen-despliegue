@@ -1,0 +1,50 @@
+version: '3.8'
+services:
+ # ■■ SERVICIO BASE DE DATOS ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ db:
+ image: mariadb:10.11 # imagen oficial de MariaDB
+ container_name: examen_db
+ restart: unless-stopped
+ environment:
+ MYSQL_ROOT_PASSWORD: rootpassword
+ MYSQL_DATABASE: componentes_db
+ MYSQL_USER: appuser
+ MYSQL_PASSWORD: apppassword
+ volumes:
+ # Persistencia: datos sobreviven al borrado del contenedor
+ - db_data:/var/lib/mysql
+ # init.sql se ejecuta automaticamente al primer arranque
+ - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+ networks:
+ - app_network
+ # SIN 'ports:' -> DB no expuesta al exterior (seguridad)
+ # ■■ SERVICIO WEB PHP + APACHE ■■■■■■■■■■■■■■■■■■■■■■■■■■
+ web:
+ build:
+ context: . # busca el Dockerfile desde aqui
+ dockerfile: docker/web/Dockerfile
+ container_name: examen_web
+ restart: unless-stopped
+ ports:
+ - '80:80' # accesible desde exterior por puerto 80
+ environment:
+ # Credenciales: se leen con getenv() en config.php
+ DB_HOST: db # nombre del servicio = hostname interno
+ DB_NAME: componentes_db
+ DB_USER: appuser
+ DB_PASS: apppassword
+ DB_PORT: 3306
+ volumes:
+ # Bind mount: cambios en src/ visibles al instante sin rebuild
+ - ./src:/var/www/html
+ depends_on:
+ - db # espera a que db arranque primero
+ networks:
+ - app_network
+# ■■ VOLUMEN CON NOMBRE (persistencia) ■■■■■■■■■■■■■■■■■■■■■
+volumes:
+ db_data:
+# ■■ RED INTERNA (comunicacion entre contenedores) ■■■■■■■■■
+networks:
+ app_network:
+ driver: bridge
